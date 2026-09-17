@@ -474,6 +474,45 @@ fn muse_manifest_requires_complete_live_controls() {
 }
 
 #[test]
+fn pi_manifest_detects_standalone_working_spinner() {
+    // Modern pi (0.85+) renders the turn spinner as a standalone,
+    // frame-free line such as " ⠹ Working" with no "..." suffix and no
+    // "──" decorations around it.
+    let working = explain(
+        Agent::Pi,
+        " $ rg -n \"macro_rules\" -A10 pkg/atom/*.rs\n\n ... (36 earlier lines, ctrl+o to expand)\n\n Found an unverified token flow.\n\n ⠹ Working\n\n glm-5.3  think:max   trustpay-mono   main   140k/384k (36.6%)   LSP Active: go\n\n────────────────────────────\n >\n────────────────────────────\n ↳ audit the payment flow\n pi-lens",
+    );
+    assert_eq!(working.state, AgentState::Working);
+    assert!(working.visible_working);
+    assert_eq!(
+        working.matched_rule
+            .as_ref()
+            .map(|rule| rule.id.as_str()),
+        Some("working_spinner_standalone")
+    );
+}
+
+#[test]
+fn pi_manifest_keeps_legacy_working_markers() {
+    let legacy_literal = explain(Agent::Pi, "Working...");
+    assert_eq!(legacy_literal.state, AgentState::Working);
+    assert!(legacy_literal.visible_working);
+
+    let legacy_border = explain(
+        Agent::Pi,
+        " Analysing payment flow\n\n── ⠹ Working ──\n\nglm-5.3 · trustpay-mono",
+    );
+    assert_eq!(legacy_border.state, AgentState::Working);
+
+    let idle = explain(
+        Agent::Pi,
+        " Previous reply\n──────────────────────────────\n >\n───────────────────────────────\n ↳ audit the payment flow",
+    );
+    assert_eq!(idle.state, AgentState::Idle);
+    assert!(!idle.visible_working);
+}
+
+#[test]
 fn manifest_validation_rejects_unknown_fields_empty_rules_invalid_regions_and_regexes() {
     assert!(parse_manifest(
         r#"
